@@ -1,11 +1,12 @@
 from transformer import *
+from cad import *
 
 import time
 import os
 
 class Object():
-    def __init__(self, name):
-        self.name = name
+    def __init__(self):
+        pass
 
     @property
     def isVertex(self): return False
@@ -24,15 +25,13 @@ class Object():
 
     @staticmethod
     def extract(boundaries, spec):
-        os = [Vertex(n, spec, p) for n,p in boundaries.vertices.items() ] + \
-             [Line(n, spec, boundaries.vertices[p], boundaries.vertices[q]) for n,(p,q,_) in boundaries.lines.items() ]
-        os.sort(key=lambda o: (o.name[0] == 'l', o.name))
+        os = [Vertex(spec, (x,y)) for x,y in boundaries.vertices ]
         return os
         
 
 class Vertex(Object):
-    def __init__(self, name, spec, p):
-        super(Vertex, self).__init__(name)
+    def __init__(self, spec, p):
+        super(Vertex, self).__init__()
         self.spec = spec
         self.p = p
 
@@ -43,33 +42,8 @@ class Vertex(Object):
     @property
     def isVertex(self): return True
 
-    def __str__(self): return f"Vertex(name={self.name}, spec?={self.spec}, pos={self.p})"
+    def __str__(self): return f"Vertex(spec?={self.spec}, pos={self.p})"
 
-class Line(Object):
-    def __init__(self, name, spec, p1, p2):
-        super(Line, self).__init__(name)
-        self.spec = spec
-        self.p1 = p1
-        self.p2 = p2
-
-    @property
-    def extent(self):
-        return (min(self.p1[0],self.p2[0]),
-                min(self.p1[1],self.p2[1])),\
-                (max(self.p1[0],self.p2[0]),
-                 max(self.p1[1],self.p2[1]))
-
-    @property
-    def isLine(self): return True
-
-    @property
-    def isVertical(self): return self.p1[0] == self.p2[0]
-
-    @property
-    def isHorizontal(self): return self.p1[1] == self.p2[1]
-
-    def __str__(self): return f"Line(name={self.name}, spec?={self.spec}, p1={self.p1}, p2={self.p2})"
-    
 class ObjectEncoder(Module):
     def __init__(self, dimensionality):
         super(ObjectEncoder, self).__init__()
@@ -108,24 +82,16 @@ class ObjectEncoder(Module):
                      for f in [math.sin, math.cos] ]
 
         if not fourier:
-            D = (self.dimensionality - 2)//8
-        else:
             D = (self.dimensionality - 2)//4
+        else:
+            D = (self.dimensionality - 2)//2
         def encodeObject(o, minimum, maximum):
             if o.isVertex:
                 return [1.,int(o.spec)] + \
                     (encodeReal(D,o.p[0],minimum[0],maximum[0]) + \
-                     encodeReal(D,o.p[1],minimum[1],maximum[1]) + \
-                     encodeReal(D,o.p[0],minimum[0],maximum[0]) + \
-                     encodeReal(D,o.p[1],minimum[1],maximum[1]) if not fourier else \
-                     encodePosition(D, o.p, minimum, maximum) + encodePosition(D, o.p, minimum, maximum))
-            if o.isLine:
-                return [0.,int(o.spec)] + \
-                    (encodeReal(D,o.p1[0],minimum[0], maximum[0]) + \
-                     encodeReal(D,o.p1[1],minimum[1], maximum[1]) + \
-                     encodeReal(D,o.p2[0],minimum[0], maximum[0]) + \
-                     encodeReal(D,o.p2[1],minimum[1], maximum[1]) if not fourier else \
-                     encodePosition(D, o.p1, minimum, maximum) + encodePosition(D, o.p2, minimum, maximum))
+                     encodeReal(D,o.p[1],minimum[1],maximum[1])) \
+                     if not fourier else \
+                     encodePosition(D, o.p, minimum, maximum)
             assert False
 
         def pad(z): return z + [0.]*(self.dimensionality - len(z))
