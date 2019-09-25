@@ -9,16 +9,55 @@ from copy import deepcopy
 class Death(Exception): pass
 
 TAG_EXPLAINED = "tag_explained"
+TAG_TRANSLATE = "tag_translate"
 TAG_TRANSLATE_SELECT = "tag_translate_select"
 TAG_TRANSLATE_START = "tag_translate_start"
 TAG_TRANSLATE_INDUCTION = "tag_translate_induction"
 
 ALL_TAGS = [
     TAG_EXPLAINED,
+    TAG_TRANSLATE,
     TAG_TRANSLATE_SELECT,
     TAG_TRANSLATE_START,
     TAG_TRANSLATE_INDUCTION
 ]
+
+class Action: pass
+
+class DoNothing(Action):
+    def execute(self,state ): return state
+
+class Translate(Action):
+    def execute(self, state):
+        return state.add_tag_all(TAG_TRANSLATE)
+
+class TranslateSelect(Action):
+    def __init__(self, objects):
+        self.objects = objects
+
+    def execute(self, state):
+        return state.translate_select(self.objects)._translate()
+
+class TranslateStart(Action):
+    def __init__(self, v):
+        self.v = v
+
+    def execute(self, state):
+        return state.translate_start(self.v)
+
+class TranslateInduction(Action):
+    def __init__(self, v):
+        self.v = v
+
+    def execute(self, state):
+        return state.translate_induction(self.v)
+
+class Explain(Action):
+    def __init__(self, v):
+        self.v = v
+
+    def execute(self, state):
+        return state.explain(self.v)
 
 class Environment:
 
@@ -66,6 +105,13 @@ class Environment:
             if tag in self.tags[vert]:
                 self.tags[vert].remove(tag)
 
+    # ad. tag from all vertexes
+    def add_tag_all(self, tag):
+        self = self.clone()
+        for vert in self.tags:
+            self.tags[vert].add(tag)
+        return self
+
     # ============= DRAWING A SINGLE POINT ==============
     
     # apply a to_explain tag to everything thats not yet explained
@@ -110,19 +156,21 @@ class Environment:
         ret = self.clone()
         for vertex in vertices:
             if TAG_EXPLAINED not in self.tags[vertex]: raise Death()
+            if TAG_TRANSLATE not in self.tags[vertex]: raise Death()
             ret.tags[vertex].add(TAG_TRANSLATE_SELECT)
-        return ret._translate()
+        return ret
 
     # from the set of TAG_TRANSLATE_SELECT points select one to be start point
     # i.e. we pick a special start coordinate u from these points
     def translate_start(self, vertex):
-        if TAG_EXPLAINED not in self.tags[vertex]:
-            raise Death()
+        if TAG_EXPLAINED not in self.tags[vertex]: raise Death()
+        if TAG_TRANSLATE not in self.tags[vertex]: raise Death()
         ret = self.clone()
         ret.tags[vertex].add(TAG_TRANSLATE_START)
         return ret
 
     def translate_induction(self, vertex):
+        if TAG_TRANSLATE not in self.tags[vertex]: raise Death()
         ret = self.clone()
         ret.tags[vertex].add(TAG_TRANSLATE_INDUCTION)
         return ret
@@ -171,6 +219,7 @@ class Environment:
         ret.remove_tag_all(TAG_TRANSLATE_SELECT)
         ret.remove_tag_all(TAG_TRANSLATE_START)
         ret.remove_tag_all(TAG_TRANSLATE_INDUCTION)
+        ret.remove_tag_all(TAG_TRANSLATE)
 
         return ret
 
@@ -182,12 +231,13 @@ if __name__ == "__main__":
 
 
     crepl = Environment(c)
-    commands = [lambda e: e,
-                lambda e: e.explain((1,2)),
-                lambda e: e.explain((1,3)),
-                lambda e: e.translate_start((1,2)),
-                lambda e: e.translate_induction((3,3.001)),
-                lambda e: e.translate_select([(1,2),(1,3)])]
-    for index, command in enumerate(commands):
-        crepl = command(crepl)
+    actions = [DoNothing(),
+               Explain((1,2)),
+               Explain((1,3)),
+               Translate(),
+               TranslateStart((1,2)),
+               TranslateInduction((3,3.001)),
+               TranslateSelect([(1,2),(1,3)])]
+    for index, action in enumerate(actions):
+        crepl = action.execute(crepl)
         crepl.render(f"step{index}")
