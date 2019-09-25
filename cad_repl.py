@@ -5,19 +5,22 @@ import matplotlib.pyplot as plot
 from cad import CAD, mtranslate, mrotate
 from copy import deepcopy
 
-TAG_TO_EXPLAIN = "tag_to_explain"
+# the agent dies when it executes an invalid command
+class Death(Exception): pass
+
 TAG_EXPLAINED = "tag_explained"
 TAG_TRANSLATE_SELECT = "tag_translate_select"
 TAG_TRANSLATE_START = "tag_translate_start"
+TAG_TRANSLATE_INDUCTION = "tag_translate_induction"
 
 ALL_TAGS = [
-        TAG_TO_EXPLAIN,
-        TAG_EXPLAINED,
-        TAG_TRANSLATE_SELECT,
-        TAG_TRANSLATE_START,
-        ]
+    TAG_EXPLAINED,
+    TAG_TRANSLATE_SELECT,
+    TAG_TRANSLATE_START,
+    TAG_TRANSLATE_INDUCTION
+]
 
-class Crepl:
+class Environment:
 
     def __init__(self, spec, tags=None):
         self.spec = spec
@@ -25,7 +28,7 @@ class Crepl:
             self.tags = dict([(x, set()) for x in spec.vertices])
         self.loop_count = dict()
 
-    def render_png(self, name="repl_render"):
+    def render(self, name="repl_render"):
         C = 'bgrcmy'
         plot.figure()
         all_vertices = list(self.spec.vertices)
@@ -50,17 +53,17 @@ class Crepl:
                           alpha=0.3)
         plot.savefig(f"drawings/{name}.png")
 
-    # clone the Crepl, if a tags is supplied, use it as the tags
+    # clone the Environment, if a tags is supplied, use it as the tags
     def clone(self, tags=None):
         if tags is None:
             return deepcopy(self)
         else:
-            return Crepl(self.spec, tags)
+            return Environment(self.spec, tags)
 
     # remove tag from all vertexes, if it exists
     def remove_tag_all(self, tag):
         for vert in self.tags:
-            if tag in self.tags[vertex]:
+            if tag in self.tags[vert]:
                 self.tags[vert].remove(tag)
 
     # ============= DRAWING A SINGLE POINT ==============
@@ -73,54 +76,70 @@ class Crepl:
                 tags[vert].add(TAG_TO_EXPLAIN)
         return ret
 
-    # from the set of TAG_TO_EXPLAIN points select a subset to explain
-    # also removes the "to_explain" tag
-    def explain(self, vertices):
+    def close(self, v1, v2, epsilon=0.001):
+        return (v1[0] - v2[0])*(v1[0] - v2[0]) + (v1[1] - v2[1])*(v1[1] - v2[1]) < epsilon*epsilon
+
+    def closest(self, v, epsilon=0.001):
+        """returns the closest vortex within distance epsilon, and returns None if it does not exist"""
+        candidates = [vp for vp in self.tags if self.close(vp,v,epsilon=epsilon) ]
+        if candidates: return candidates[0]
+        return None        
+
+    # explains a single vertex
+    def explain(self, v):
         ret = self.clone()
-        for vert in vertices:
-            assert TAG_TO_EXPLAIN in ret.tags[vert]
-        ret.remove_tag_all(TAG_TO_EXPLAIN)
-        for vert in vertices:
-            ret.tags[vert].add(TAG_EXPLAINED)
+        for v2,ts in ret.tags.items():
+            if self.close(v,v2):
+                ts.add(TAG_EXPLAINED)
         return ret
+
+    def get_tag1(self, t):
+        """returns the single unique feature which has this tag"""
+        matches = [v for v,ts in self.tags.items() if t in ts ]
+        if len(matches) != 1: raise Death()
+        return matches[0]
+
+    def get_tag(self, t):
+        """returns list of all features which have this tag"""
+        return [v for v,ts in self.tags.items() if t in ts ]
 
     # ================== DRAWING A LOOP VIA TRANSLATION ==================
 
     # select a subset of points to translate
     def translate_select(self, vertices):
         ret = self.clone()
-        for vert in vertices:
-            ret.tags[vert].add(TAG_TRANSLATE_SELECT)
-        return ret
+        for vertex in vertices:
+            if TAG_EXPLAINED not in self.tags[vertex]: raise Death()
+            ret.tags[vertex].add(TAG_TRANSLATE_SELECT)
+        return ret._translate()
 
     # from the set of TAG_TRANSLATE_SELECT points select one to be start point
     # i.e. we pick a special start coordinate u from these points
     def translate_start(self, vertex):
+        if TAG_EXPLAINED not in self.tags[vertex]:
+            raise Death()
         ret = self.clone()
-        assert TAG_TRANSLATE_SELECT in ret.tags[vertex]
         ret.tags[vertex].add(TAG_TRANSLATE_START)
+        return ret
+
+    def translate_induction(self, vertex):
+        ret = self.clone()
+        ret.tags[vertex].add(TAG_TRANSLATE_INDUCTION)
         return ret
 
     # given the subset of points to translate TAG_TRANSLATE_SELECT
     # given a special previledged start coordinate TAG_TRANSLATE_START
     # another vertex will serve as the "step" of the translation, this 
     # step is repeated multiple times until something illegal happens
-    def translate_step(self, step_vertex):
+    def _translate(self):
         ret = self.clone()
         
         # recover the set of selected vertex to be translated
-        selected = set()
-        for vert in ret.tags:
-            if TAG_TRANSLATE_SELECT in ret.tags[vert]:
-                selected.add(vert)
-        assert len(selected) > 0, "this si wrong l o l"
+        selected = self.get_tag(TAG_TRANSLATE_SELECT)
     
         # recover the start vertex
-        start = None
-        for vert in ret.tags:
-            if TAG_TRANSLATE_START in ret.tags[vert]:
-                start = vert
-        assert start is not None, "cmon man this is wrong l o l"
+        start = self.get_tag1(TAG_TRANSLATE_START)
+        step_vertex = self.get_tag1(TAG_TRANSLATE_INDUCTION)
 
         translate_x = step_vertex[0] - start[0]
         translate_y = step_vertex[1] - start[1]
@@ -135,23 +154,23 @@ class Crepl:
             looped_vertices = set()
             for i in range(100):
                 # loop it i number of times
-                print (selected)
-                print (i)
-                print (translate_x, translate_y)
                 c_looped = c.loop(selected, mtranslate(translate_x, translate_y), i)
-                print (c_looped.vertices)
-                for loop_vert in c_looped.vertices:
-                    # break out of the loop if the loop goes outside the spec
-                    if loop_vert not in ret.spec.vertices:
-                        return looped_vertices, i
-                looped_vertices = looped_vertices | c_looped.vertices
+                new_vertices = [ret.closest(v) for v in c_looped.vertices ]
+                if any( nv is None for nv in new_vertices  ):
+                    return looped_vertices, i
+                looped_vertices.update(new_vertices)
             assert 0, "should not reach here, how did you loop 100 times and still ok"
 
         looped_vertices, loop_count = get_looped_vertices()
         for looped_vert in looped_vertices:
-            ret.tags[looped_vert] = TAG_EXPLAINED
+            ret.tags[looped_vert].add(TAG_EXPLAINED)
         # do some book keeping
         ret.loop_count[tuple(sorted(list(selected)))] = loop_count
+
+        # clear loop tags
+        ret.remove_tag_all(TAG_TRANSLATE_SELECT)
+        ret.remove_tag_all(TAG_TRANSLATE_START)
+        ret.remove_tag_all(TAG_TRANSLATE_INDUCTION)
 
         return ret
 
@@ -159,23 +178,16 @@ class Crepl:
 if __name__ == "__main__":
     c = CAD()
     c = c.make_vertex(1,2).make_vertex(1,3)
-    c = c.loop([(1,2),(1,3)], mtranslate(2,1), 5)
+    c = c.loop([(1,2),(1,3)], mtranslate(2,1.001), 5)
 
 
-    crepl = Crepl(c)
-    crepl.render_png("step0")
-
-    crepl = crepl.translate_select([(1,2),(1,3)])
-    print (crepl.tags)
-    crepl.render_png("step1")
-
-    crepl = crepl.translate_start((1,2))
-    print (crepl.tags)
-    crepl.render_png("step2")
-
-    crepl = crepl.translate_step((3,3))
-    print (crepl.tags)
-    crepl.render_png("step3")
-
-
-
+    crepl = Environment(c)
+    commands = [lambda e: e,
+                lambda e: e.explain((1,2)),
+                lambda e: e.explain((1,3)),
+                lambda e: e.translate_start((1,2)),
+                lambda e: e.translate_induction((3,3.001)),
+                lambda e: e.translate_select([(1,2),(1,3)])]
+    for index, command in enumerate(commands):
+        crepl = command(crepl)
+        crepl.render(f"step{index}")

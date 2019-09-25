@@ -6,9 +6,15 @@ class CAD:
     def __init__(self, vertices=None):
         self.vertices = vertices or set()
 
+    def close(self, v1, v2, epsilon=0.001):
+        return (v1[0] - v2[0])*(v1[0] - v2[0]) + (v1[1] - v2[1])*(v1[1] - v2[1]) < epsilon*epsilon
+        
     def make_vertex(self,x,y,epsilon=0.001):
         if any( (xp-x)*(xp-x) + (yp-y)*(yp-y) < epsilon for xp,yp in self.vertices ): return self
         return CAD(self.vertices|{(x,y)})
+
+    def __contains__(self,p):
+        return any( self.close(p,pp) for pp in self.vertices  )
 
     def loop(self, objects, transformation, count):
         N = len(objects)
