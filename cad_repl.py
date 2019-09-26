@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import matplotlib.pyplot as plot
+from matplotlib.lines import Line2D
 
 from cad import CAD, mtranslate, mrotate
 from copy import deepcopy
@@ -27,23 +28,12 @@ class Action: pass
 class DoNothing(Action):
     def execute(self,state ): return state
 
-class Translate(Action):
-    def execute(self, state):
-        return state.add_tag_all(TAG_TRANSLATE)
-
-class TranslateSelect(Action):
-    def __init__(self, objects):
-        self.objects = objects
-
-    def execute(self, state):
-        return state.translate_select(self.objects)._translate()
-
 class TranslateStart(Action):
     def __init__(self, v):
         self.v = v
 
     def execute(self, state):
-        return state.translate_start(self.v)
+        return state.add_tag_all(TAG_TRANSLATE).translate_start(self.v)
 
 class TranslateInduction(Action):
     def __init__(self, v):
@@ -51,6 +41,13 @@ class TranslateInduction(Action):
 
     def execute(self, state):
         return state.translate_induction(self.v)
+
+class TranslateSelect(Action):
+    def __init__(self, objects):
+        self.objects = objects
+
+    def execute(self, state):
+        return state.translate_select(self.objects)._translate()
 
 class Explain(Action):
     def __init__(self, v):
@@ -69,27 +66,34 @@ class Environment:
 
     def render(self, name="repl_render"):
         C = 'bgrcmy'
+        radius = 0.1
         plot.figure()
         all_vertices = list(self.spec.vertices)
-        # draw untagged
-        untagged_vertices = [vertex for vertex in all_vertices if len(self.tags[vertex]) == 0]
-        plot.scatter([x for x,_ in untagged_vertices],
-                     [y for _,y in untagged_vertices],
-                      s=10,
-                      c='k',
-                      alpha=1.0)
-        for TAG in ALL_TAGS:
+
+        for tag_index, TAG in enumerate(ALL_TAGS):
+            angle = 2*math.pi*tag_index/len(ALL_TAGS)
+            dx,dy = radius*math.cos(angle), radius*math.sin(angle)
             vertex_to_draw = []
             vertex_to_draw_colors = []
             for vertex in all_vertices:
                 if TAG in self.tags[vertex]:
-                    vertex_to_draw.append(vertex)
-                    vertex_to_draw_colors.append(C[ALL_TAGS.index(TAG)])
+                    x,y = vertex
+                    vertex_to_draw.append((x + dx, y + dy))
+                    vertex_to_draw_colors.append(C[tag_index])
             plot.scatter([x for x,_ in vertex_to_draw],
                          [y for _,y in vertex_to_draw],
                           s=100,
                           c=vertex_to_draw_colors, 
                           alpha=0.3)
+        # draw little black dots
+        plot.scatter([x for x,_ in all_vertices],
+                     [y for _,y in all_vertices],
+                      s=10,
+                      c='k',
+                      alpha=1.0)
+        plot.legend(handles=[Line2D([0],[0],marker='o',color='w',label=t,
+                                    markerfacecolor=c,markersize=15,alpha=0.3)
+                             for c,t in zip(C,ALL_TAGS) ])
         plot.savefig(f"drawings/{name}.png")
 
     # clone the Environment, if a tags is supplied, use it as the tags
@@ -234,7 +238,6 @@ if __name__ == "__main__":
     actions = [DoNothing(),
                Explain((1,2)),
                Explain((1,3)),
-               Translate(),
                TranslateStart((1,2)),
                TranslateInduction((3,3.001)),
                TranslateSelect([(1,2),(1,3)])]
