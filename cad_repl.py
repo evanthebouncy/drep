@@ -51,7 +51,7 @@ class RotateNext(Action):
     def execute(self, state):
         if TAG_ROTATE not in state.tags[self.v]: raise Death()
         state = state.clone()
-        state.tags[self.v].add(TAG_TRANSLATE_NEXT)
+        state.tags[self.v].add(TAG_ROTATE_NEXT)
         return state
 
 class RotateFinal(Action):
@@ -61,7 +61,7 @@ class RotateFinal(Action):
     def execute(self, state):
         if TAG_ROTATE not in state.tags[self.v]: raise Death()
         state = state.clone()
-        state.tags[self.v].add(TAG_TRANSLATE_FINAL)
+        state.tags[self.v].add(TAG_ROTATE_FINAL)
         return state
 
 class RotateSelect(Action):
@@ -282,7 +282,6 @@ class Environment:
 
         return ret
 
-        
 if __name__ == "__main__":
     c = CAD()
     c = c.make_vertex(1,2).make_vertex(1,3)
