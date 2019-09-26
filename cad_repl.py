@@ -14,9 +14,18 @@ TAG_TRANSLATE = "tag_translate"
 TAG_TRANSLATE_SELECT = "tag_translate_select"
 TAG_TRANSLATE_START = "tag_translate_start"
 TAG_TRANSLATE_INDUCTION = "tag_translate_induction"
+TAG_ROTATE = "tag_rotate"
+TAG_ROTATE_START = "tag_rotate_start"
+TAG_ROTATE_NEXT = "tag_rotate_next"
+TAG_ROTATE_FINAL = "tag_rotate_final"
+TAG_ROTATE_SELECT = "tag_rotate_select"
 
 ALL_TAGS = [
     TAG_EXPLAINED,
+    # TAG_ROTATE,
+    # TAG_ROTATE_NEXT,
+    # TAG_ROTATE_FINAL,
+    # TAG_ROTATE_SELECT,
     TAG_TRANSLATE,
     TAG_TRANSLATE_SELECT,
     TAG_TRANSLATE_START,
@@ -28,6 +37,52 @@ class Action: pass
 class DoNothing(Action):
     def execute(self,state ): return state
 
+class RotateStart(Action):
+    def __init__(self, v):
+        self.v = v
+
+    def execute(self, state):
+        return state.add_tag_all(TAG_ROTATE).rotate_start(self.v)
+
+class RotateNext(Action):
+    def __init__(self, v):
+        self.v = v
+
+    def execute(self, state):
+        if TAG_ROTATE not in state.tags[self.v]: raise Death()
+        state = state.clone()
+        state.tags[self.v].add(TAG_TRANSLATE_NEXT)
+        return state
+
+class RotateFinal(Action):
+    def __init__(self, v):
+        self.v = v
+
+    def execute(self, state):
+        if TAG_ROTATE not in state.tags[self.v]: raise Death()
+        state = state.clone()
+        state.tags[self.v].add(TAG_TRANSLATE_FINAL)
+        return state
+
+class RotateSelect(Action):
+    def __init__(self, vs):
+        self.vs = vs
+
+    def execute(self, state):
+        state = state.clone()
+        if len(self.vs) == 0 or TAG_ROTATE not in state.tags[list(self.vs)[0]]: raise Death()
+
+        for v in self.vs: state.tags[v].add(TAG_ROTATE_SELECT)
+
+        v0 = np.array(state.get_tag1(TAG_ROTATE_START))
+        v1 = np.array(state.get_tag1(TAG_ROTATE_NEXT))
+        v2 = np.array(state.get_tag1(TAG_ROTATE_FINAL))
+
+        # calculate the center
+        d01 = ((v0 - v1)*(v0 - v1)).sum()**0.5
+        d12 = ((v2 - v1)*(v2 - v1)).sum()**0.5
+        
+    
 class TranslateStart(Action):
     def __init__(self, v):
         self.v = v
