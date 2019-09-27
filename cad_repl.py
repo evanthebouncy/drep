@@ -2,6 +2,8 @@ import numpy as np
 import math
 import matplotlib.pyplot as plot
 from matplotlib.lines import Line2D
+import matplotlib.cm as cm
+
 
 from cad import CAD, mtranslate, mrotate
 from copy import deepcopy
@@ -155,7 +157,7 @@ class Environment:
         self.loop_count = dict()
 
     def render(self, name="repl_render"):
-        C = 'bgrcmy'
+        C = list(np.linspace(0, 1, len(ALL_TAGS)))
         radius = 0.1
         plot.figure()
         all_vertices = list(self.spec.vertices)
@@ -174,7 +176,10 @@ class Environment:
                          [y for _,y in vertex_to_draw],
                           s=100,
                           c=vertex_to_draw_colors, 
-                          alpha=0.3)
+                          alpha=0.3,
+                          cmap=cm.rainbow)
+            # plt.scatter(x, y, alpha=0.5, c=corr, cmap=cm.rainbow)
+
         # draw little black dots
         plot.scatter([x for x,_ in all_vertices],
                      [y for _,y in all_vertices],
@@ -182,7 +187,7 @@ class Environment:
                       c='k',
                       alpha=1.0)
         plot.legend(handles=[Line2D([0],[0],marker='o',color='w',label=t,
-                                    markerfacecolor=c,markersize=15,alpha=0.3)
+                                    markerfacecolor=cm.rainbow(c),markersize=15,alpha=0.3)
                              for c,t in zip(C,ALL_TAGS) ])
         plot.savefig(f"drawings/{name}.png")
 
