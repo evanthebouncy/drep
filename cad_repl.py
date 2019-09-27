@@ -22,12 +22,11 @@ TAG_ROTATE_SELECT = "tag_rotate_select"
 
 ALL_TAGS = [
     TAG_EXPLAINED,
-    # TAG_ROTATE,
-    # TAG_ROTATE_NEXT,
-    # TAG_ROTATE_FINAL,
-    # TAG_ROTATE_SELECT,
+    TAG_ROTATE,
+    TAG_ROTATE_START,
+    TAG_ROTATE_NEXT,
+    TAG_ROTATE_FINAL,
     TAG_TRANSLATE,
-    TAG_TRANSLATE_SELECT,
     TAG_TRANSLATE_START,
     TAG_TRANSLATE_INDUCTION
 ]
@@ -42,7 +41,7 @@ class RotateStart(Action):
         self.v = v
 
     def execute(self, state):
-        return state.add_tag_all(TAG_ROTATE).rotate_start(self.v)
+        return state.add_tag_all(TAG_ROTATE).add_tag(self.v, TAG_ROTATE_START)
 
 class RotateNext(Action):
     def __init__(self, v):
@@ -74,13 +73,49 @@ class RotateSelect(Action):
 
         for v in self.vs: state.tags[v].add(TAG_ROTATE_SELECT)
 
-        v0 = np.array(state.get_tag1(TAG_ROTATE_START))
-        v1 = np.array(state.get_tag1(TAG_ROTATE_NEXT))
-        v2 = np.array(state.get_tag1(TAG_ROTATE_FINAL))
+        P = np.array(state.get_tag1(TAG_ROTATE_START))
+        Q = np.array(state.get_tag1(TAG_ROTATE_NEXT))
+        R = np.array(state.get_tag1(TAG_ROTATE_FINAL))
 
         # calculate the center
-        d01 = ((v0 - v1)*(v0 - v1)).sum()**0.5
-        d12 = ((v2 - v1)*(v2 - v1)).sum()**0.5
+        P2 = np.sum(P*P)
+        Q2 = np.sum(Q*Q)
+        R2 = np.sum(R*R)
+        pq = P - Q
+        qp = Q - P
+        pr = P - R
+        rp = R - P
+
+        cx = 0.5*(pq[1]*(P2 - R2) - pr[1]*(P2 - Q2))/(pr[1]*qp[0] - pq[1]*rp[0])
+        cy = 0.5*(pq[0]*(P2 - R2) - pr[0]*(P2 - Q2))/(pr[0]*qp[1] - pq[0]*rp[1])
+        center = np.array([cx,cy])
+        #radius = ((P - center)*(P - center)).sum()**0.5
+
+        u = P - center
+        u = u/((u*u).sum()**0.5)
+        v = Q - center
+        v = v/((v*v).sum()**0.5)
+        d_angle = math.acos((u*v).sum())
+        T = mrotate(d_angle)#, center=(center[0], center[1]))
+
+        # just spin this shit around
+        selection = self.vs
+        for _ in range(int(2*math.pi/d_angle + 0.5)):
+            candidates = [state.closest(list(T@np.array([x,y,1]))[:-1]) for x,y in selection]
+            if any( k is None for k in candidates ): break
+            for k in candidates: state = state.explain(k)
+            selection = candidates
+
+        state.remove_tag_all(TAG_ROTATE_SELECT)
+        state.remove_tag_all(TAG_ROTATE_START)
+        state.remove_tag_all(TAG_ROTATE_NEXT)
+        state.remove_tag_all(TAG_ROTATE_FINAL)
+        state.remove_tag_all(TAG_ROTATE)
+
+        return state
+
+    
+            
         
     
 class TranslateStart(Action):
@@ -171,6 +206,11 @@ class Environment:
             self.tags[vert].add(tag)
         return self
 
+    def add_tag(self, vert, tag):
+        self = self.clone()
+        self.tags[vert].add(tag)
+        return self
+
     # ============= DRAWING A SINGLE POINT ==============
     
     # apply a to_explain tag to everything thats not yet explained
@@ -181,10 +221,10 @@ class Environment:
                 tags[vert].add(TAG_TO_EXPLAIN)
         return ret
 
-    def close(self, v1, v2, epsilon=0.001):
+    def close(self, v1, v2, epsilon=0.005):
         return (v1[0] - v2[0])*(v1[0] - v2[0]) + (v1[1] - v2[1])*(v1[1] - v2[1]) < epsilon*epsilon
 
-    def closest(self, v, epsilon=0.001):
+    def closest(self, v, epsilon=0.005):
         """returns the closest vortex within distance epsilon, and returns None if it does not exist"""
         candidates = [vp for vp in self.tags if self.close(vp,v,epsilon=epsilon) ]
         if candidates: return candidates[0]
@@ -283,18 +323,35 @@ class Environment:
         return ret
 
 if __name__ == "__main__":
+    N = 100
+    angle = 2*math.pi/N
+    print("ground truth difference in angle",angle)
+    vertices = [(r*math.cos(angle*i), r*math.sin(angle*i))
+                for i in range(N)
+                for r in [1]]
+    print(vertices)
     c = CAD()
-    c = c.make_vertex(1,2).make_vertex(1,3)
-    c = c.loop([(1,2),(1,3)], mtranslate(2,1.001), 5)
+    for v in vertices:
+        c = c.make_vertex(*v)
+
+    #c.show()
+    #c = c.loop([(1,2),(1,3)], mtranslate(2,1.001), 5)
 
 
     crepl = Environment(c)
     actions = [DoNothing(),
-               Explain((1,2)),
-               Explain((1,3)),
-               TranslateStart((1,2)),
-               TranslateInduction((3,3.001)),
-               TranslateSelect([(1,2),(1,3)])]
+               Explain(vertices[0]),
+               Explain(vertices[1]),
+               Explain(vertices[2]),
+#               Explain(vertices[4]),
+               RotateStart(vertices[0]),
+               RotateNext(vertices[1]),
+               RotateFinal(vertices[2]),
+               RotateSelect(vertices[:1])
+               # TranslateStart((1,2)),
+               # TranslateInduction((3,3.001)),
+               # TranslateSelect([(1,2),(1,3)])
+    ]
     for index, action in enumerate(actions):
         crepl = action.execute(crepl)
         crepl.render(f"step{index}")
