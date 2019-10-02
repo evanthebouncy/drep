@@ -33,12 +33,19 @@ ALL_TAGS = [
     TAG_TRANSLATE_INDUCTION
 ]
 
-class Action: pass
+class Action:
+    @staticmethod
+    def all_buttons():
+        return [Explain, TranslateStart, TranslateInduction, TranslateSelect]
+
+    def __call__(self, other):
+        return self.execute(other)
 
 class DoNothing(Action):
     def execute(self,state ): return state
 
 class RotateStart(Action):
+    number_of_points = 1
     def __init__(self, v):
         self.v = v
 
@@ -46,6 +53,7 @@ class RotateStart(Action):
         return state.add_tag_all(TAG_ROTATE).add_tag(self.v, TAG_ROTATE_START)
 
 class RotateNext(Action):
+    number_of_points = 1
     def __init__(self, v):
         self.v = v
 
@@ -121,6 +129,7 @@ class RotateSelect(Action):
         
     
 class TranslateStart(Action):
+    number_of_points = 1
     def __init__(self, v):
         self.v = v
 
@@ -128,6 +137,7 @@ class TranslateStart(Action):
         return state.add_tag_all(TAG_TRANSLATE).translate_start(self.v)
 
 class TranslateInduction(Action):
+    number_of_points = 1
     def __init__(self, v):
         self.v = v
 
@@ -135,13 +145,15 @@ class TranslateInduction(Action):
         return state.translate_induction(self.v)
 
 class TranslateSelect(Action):
-    def __init__(self, objects):
-        self.objects = objects
+    number_of_points = 'many'
+    def __init__(self, vs):
+        self.vs = vs
 
     def execute(self, state):
-        return state.translate_select(self.objects)._translate()
+        return state.translate_select(self.vs)._translate()
 
 class Explain(Action):
+    number_of_points = 1
     def __init__(self, v):
         self.v = v
 
@@ -326,6 +338,16 @@ class Environment:
         ret.remove_tag_all(TAG_TRANSLATE)
 
         return ret
+
+def get_trace(program):
+    spec = program.execute(CAD())
+    actions = program.compile()
+    crepl = Environment(spec)
+    states = [crepl]
+    for a in actions:
+        crepl = a(crepl)
+        states.append(crepl)
+    return list(zip(states[:-1], actions))
 
 if __name__ == "__main__":
     N = 100
