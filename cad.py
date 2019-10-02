@@ -138,8 +138,6 @@ class Program:
     def sample():
         num_dots = random.randint(1, 2)
         num_loops = random.randint(1,3)
-        print (num_dots, num_loops)
-
         cmds = []
         canvas_sofar = CAD()
 

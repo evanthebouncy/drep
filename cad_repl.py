@@ -36,10 +36,18 @@ ALL_TAGS = [
 class Action:
     @staticmethod
     def all_buttons():
-        return [Explain, TranslateStart, TranslateInduction, TranslateSelect]
+        return [TranslateStart, TranslateInduction, TranslateSelect, Explain]
 
     def __call__(self, other):
         return self.execute(other)
+
+    def __str__(self):
+        return self.__repr__()
+    def __repr__(self):
+        if self.__class__.number_of_points == 1:
+            return f"{self.__class__} {self.v}"
+        else:
+            return f"{self.__class__} {self.vs}"
 
 class DoNothing(Action):
     def execute(self,state ): return state
@@ -167,6 +175,17 @@ class Environment:
         if tags is None:
             self.tags = dict([(x, set()) for x in spec.vertices])
         self.loop_count = dict()
+
+    def __str__(self):
+        return self.__repr__()
+    def __repr__(self):
+        return str(list(sorted(list(self.tags.items()))))
+
+    def __call__(self, other):
+        return other(self)
+
+    def all_explained(self):
+        return all( TAG_EXPLAINED in tags for tags in self.tags.values() )
 
     def render(self, name="repl_render"):
         C = list(np.linspace(0, 1, len(ALL_TAGS)))
@@ -348,6 +367,7 @@ def get_trace(program):
         crepl = a(crepl)
         states.append(crepl)
     return list(zip(states[:-1], actions))
+
 
 if __name__ == "__main__":
     N = 100

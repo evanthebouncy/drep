@@ -59,6 +59,9 @@ class Module(nn.Module):
     def finalize(self):
         if self.use_cuda: self.cuda()
 
+    def to_numpy(self, x):
+        return x.detach().cpu().squeeze().numpy()
+
 class Flatten(Module):
     def __init__(self):
         super(Flatten, self).__init__()

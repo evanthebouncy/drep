@@ -2,10 +2,13 @@ import torch
 import torch.nn as nn
 from utilities import Module
 import transformer as tr
-from cad_repl import ALL_TAGS, get_trace, Action
+from cad_repl import ALL_TAGS, get_trace, Action, TranslateSelect
+import cad_repl
 import math
 import numpy as np
 import torch.nn.functional as F
+import pprint
+pp = pprint.PrettyPrinter(indent=4)
 
 class Agent(Module):
 
@@ -30,6 +33,8 @@ class Agent(Module):
                                 nn.Linear(hidden_size, hidden_size),
                                 nn.ReLU(),
                                 nn.Linear(hidden_size, 1))
+
+        self.meta_head = nn.Linear(hidden_size, 1)
         self.finalize()
         self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
 
@@ -77,20 +82,53 @@ class Agent(Module):
         # unormalised logits
         x_selection_logits = self.selection_fc(transformed_xs).squeeze(-1)
 
-        return unique_btn_logprob, x_selection_logits
+        # decide which output to use
+        x_meta_head_logit = self.meta_head(torch.max(transformed_xs, dim=-2)[0])
+
+        return unique_btn_logprob, x_selection_logits, x_meta_head_logit
 
     def loss(self, state, action):
         ordered_vertices = list(sorted(list(state.spec.vertices)))
-        unique_logprob, selection_logprob = self(state)
+        unique_logprob, selection_logit, meta_head_logit = self(state)
+
+        meta_head_target = self.tensor([1.0 if action.__class__.number_of_points == 1 else 0.0])
+        meta_head_loss = F.binary_cross_entropy_with_logits(meta_head_logit, meta_head_target, reduction='sum')
 
         if action.__class__.number_of_points == 1:
             vertex_index = ordered_vertices.index(action.v)
             action_index = self.unique_buttons.index(action.__class__)
             pred_logprob = unique_logprob[vertex_index][action_index]
-            return -pred_logprob
+            return -pred_logprob + meta_head_loss
         else:
             selection_mask = self.tensor([1.0 if v in action.vs else 0.0 for v in ordered_vertices])
-            return F.binary_cross_entropy_with_logits(selection_logprob, selection_mask, reduction='sum')
+            return F.binary_cross_entropy_with_logits(selection_logit, selection_mask, reduction='sum') + meta_head_loss
+
+    def sample_action(self, state):
+        ordered_vertices = list(sorted(list(state.spec.vertices)))
+        unique_logprob, selection_logit, meta_head_logit = self(state)
+        case_unique = self.to_numpy(torch.distributions.bernoulli.Bernoulli(probs=torch.sigmoid(meta_head_logit)).sample()) > 0.5
+
+        if case_unique:
+            axis1, axis2 = unique_logprob.size()
+            x = self.to_numpy(torch.distributions.categorical.Categorical(probs=torch.exp(unique_logprob).view(-1)).sample())
+            return self.unique_buttons[x % axis2](ordered_vertices[x // axis2])
+        else:
+            x = torch.distributions.bernoulli.Bernoulli(probs=torch.sigmoid(selection_logit)).sample() 
+            x = self.to_numpy(x)
+            selected_vert = [vert for vert_id, vert in enumerate(ordered_vertices) if x[vert_id] > 0.5]
+            return TranslateSelect(set(selected_vert))
+
+    def get_rollout(self, state):
+        trace = []
+        for i in range(20):
+            action = self.sample_action(state)
+            trace.append((state, action))
+            state = state(action)
+            if state.all_explained():
+                return trace
+
+    def save(self, loc):
+        torch.save(self, loc)
 
 if __name__ == '__main__':
 
@@ -101,6 +139,7 @@ if __name__ == '__main__':
 
         # setting up a spec
         from cad import CAD, Program, MakeVertex, Translate
+        from cad_repl import Environment
         c = CAD()
         cmd1 = MakeVertex((1,2))
         cmd2 = MakeVertex((1,3))
@@ -108,13 +147,23 @@ if __name__ == '__main__':
         program = Program([cmd1, cmd2, cmd3])
 
         trace = get_trace(program)
-        for i in range(100000000000000000000):
+        pp.pprint(trace)
+        for i in range(1000000000000):
             for s, a in trace:
                 agent.opt.zero_grad()
                 loss = agent.loss(s,a)
                 loss.backward()
                 agent.opt.step()
+
+            if i % 100 == 0:
                 print (loss)
+                try:
+                    rollout = agent.get_rollout(Environment(program.execute()))
+                    print (rollout)
+                    print ("we are awesome")
+                    assert 0
+                except cad_repl.Death:
+                    print ("rollout failed")
         assert 0
 
     test1()
