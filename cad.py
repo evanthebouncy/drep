@@ -79,8 +79,18 @@ class MakeVertex(Command):
         (x_min, y_min), (x_max, y_max) = canvas_sofar.get_size()
         minmin = min(x_min, y_min)
         maxmax = max(x_max, y_max)
-        return MakeVertex((np.random.uniform(minmin, maxmax),
-                           np.random.uniform(minmin, maxmax)))
+        def legal(x,y):
+            for (xp, yp) in canvas_sofar.vertices:
+                if np.sum((np.array([x,y]) - np.array((xp, yp)))**2) < 0.2**2:
+                    return False
+            return True
+
+        for _ in range(30):
+            x, y = np.random.uniform(minmin, maxmax), np.random.uniform(minmin, maxmax)
+            if legal(x,y):
+                break
+
+        return MakeVertex((x,y))
 
     def __init__(self, vertex):
         self.vertex = vertex
@@ -104,18 +114,21 @@ class Translate(Loop):
     def sample(canvas_sofar):
         random_number = random.randint(1, len(canvas_sofar.vertices))
         group = random.sample(list(canvas_sofar.vertices), random_number) 
-        x_min = min(v[0] for v in group)
-        x_max = max(v[0] for v in group)
-        y_min = min(v[1] for v in group)
-        y_max = max(v[1] for v in group)
+        # x_min = min(v[0] for v in group)
+        # x_max = max(v[0] for v in group)
+        # y_min = min(v[1] for v in group)
+        # y_max = max(v[1] for v in group)
 
-        diff_x = x_max - x_min + 1.0
-        diff_y = y_max - y_min + 1.0
+        # diff_x = x_max - x_min + 1.0
+        # diff_y = y_max - y_min + 1.0
 
-        delta_x = (diff_x + 1.5 * np.random.random()) * random.choice([1,-1])
-        delta_y = (diff_y + 1.5 * np.random.random()) * random.choice([1,-1])
+        # delta_x = (diff_x + 1.5 * np.random.random()) * random.choice([1,-1])
+        # delta_y = (diff_y + 1.5 * np.random.random()) * random.choice([1,-1])
 
-        repetition = np.random.randint(2, 5)
+        delta_x = random.choice([1, -1]) * np.random.uniform(0.2, 0.4)
+        delta_y = random.choice([1, -1]) * np.random.uniform(0.2, 0.4)
+
+        repetition = np.random.randint(2, 4)
 
         return Translate(group, delta_x, delta_y, repetition)
 
@@ -137,7 +150,7 @@ class Program:
     @staticmethod
     def sample():
         num_dots = random.randint(1, 2)
-        num_loops = random.randint(1,3)
+        num_loops = random.randint(1,2)
         cmds = []
         canvas_sofar = CAD()
 
@@ -147,10 +160,6 @@ class Program:
             cmds.append(vertex_cmd)
         
         for j in range(num_loops):
-
-            vertex_cmd = MakeVertex.sample(canvas_sofar)
-            canvas_sofar = vertex_cmd(canvas_sofar)
-            cmds.append(vertex_cmd)
 
             loop_cmd = Translate.sample(canvas_sofar)
             canvas_sofar = loop_cmd(canvas_sofar)
@@ -208,6 +217,18 @@ if __name__ == "__main__":
         for index, action in enumerate(actions):
             crepl = action.execute(crepl)
             crepl.render(f"compiled_{index}")
+
+    def test4():
+        import cad_repl
+        for i in range(1000):
+            print (i)
+            program = Program.sample()
+            actions = program.compile()
+            crepl = cad_repl.Environment(program.execute())
+            start = crepl
+            for index, action in enumerate(actions):
+                crepl = action.execute(crepl)
+            assert crepl.all_explained
 
     test3()
         

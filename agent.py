@@ -125,7 +125,8 @@ class Agent(Module):
             trace.append((state, action))
             state = state(action)
             if state.all_explained():
-                return trace
+                return trace, state
+        return trace, state
 
     def save(self, loc):
         torch.save(self, loc)

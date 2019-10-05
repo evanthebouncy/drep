@@ -176,10 +176,14 @@ class Environment:
             self.tags = dict([(x, set()) for x in spec.vertices])
         self.loop_count = dict()
 
+    def __eq__(self, other):
+        return str(self) == str(other)
+
     def __str__(self):
         return self.__repr__()
     def __repr__(self):
-        return str(list(sorted(list(self.tags.items()))))
+        stuff = [(k, list(sorted(list(v)))) for k, v in self.tags.items()]
+        return str(list(sorted(stuff)))
 
     def __call__(self, other):
         return other(self)
@@ -221,6 +225,7 @@ class Environment:
                                     markerfacecolor=cm.rainbow(c),markersize=15,alpha=0.3)
                              for c,t in zip(C,ALL_TAGS) ])
         plot.savefig(f"drawings/{name}.png")
+        plot.close()
 
     # clone the Environment, if a tags is supplied, use it as the tags
     def clone(self, tags=None):
