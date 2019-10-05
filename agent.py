@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utilities import Module
+from utilities import Module, Softminus
 import transformer as tr
 from cad_repl import ALL_TAGS, get_trace, Action, TranslateSelect
 import cad_repl
@@ -23,6 +23,11 @@ class Agent(Module):
 
         self.embedding = nn.Linear(input_vertex_dim, hidden_size)
         self.transformer = tr.TransformerEncoder(6, 8, hidden_size)
+
+        self._log_value = nn.Sequential(        
+                                nn.Linear(hidden_size, hidden_size),
+                                nn.ReLU(),
+                                nn.Linear(hidden_size, 1))
 
         self.unique_btn_fc = nn.Sequential(        
                                 nn.Linear(hidden_size, hidden_size),
@@ -67,6 +72,7 @@ class Agent(Module):
         raise NotImplementedError
 
     def forward(self, x):
+        """Returns: unique button log probability, selection logs probability, metahead, log value"""
         list_of_enc_points = self.encode_environment(x)
         n_objects = [len(list_of_enc_points)]
         # n_points x enc_point_dim
@@ -86,14 +92,24 @@ class Agent(Module):
         # decide which output to use
         x_meta_head_logit = self.meta_head(torch.max(transformed_xs, dim=-2)[0])
 
-        return unique_btn_logprob, x_selection_logits, x_meta_head_logit
+        # decide if we have screwed up
+        lv = self._log_value(transformed_xs.sum(-2))
+        
 
-    def loss(self, state, action):
+        return unique_btn_logprob, x_selection_logits, x_meta_head_logit, lv
+
+    def loss(self, state, action, value_target=None):
+        """value_target: [0,1], or None"""
         ordered_vertices = list(sorted(list(state.spec.vertices)))
-        unique_logprob, selection_logit, meta_head_logit = self(state)
+        unique_logprob, selection_logit, meta_head_logit, log_value = self(state)
 
         meta_head_target = self.tensor([1.0 if action.__class__.number_of_points == 1 else 0.0])
         meta_head_loss = F.binary_cross_entropy_with_logits(meta_head_logit, meta_head_target, reduction='sum')
+
+        if value_target is None: value_loss = 0.
+        else:
+            value_target = self.tensor([value_target])
+            value_loss = F.binary_cross_entropy_with_logits(log_value, value_target, reduction='sum')
 
         if action.__class__.number_of_points == 1:
             vertex_index = ordered_vertices.index(action.v)
@@ -102,11 +118,11 @@ class Agent(Module):
             return -pred_logprob + meta_head_loss
         else:
             selection_mask = self.tensor([1.0 if v in action.vs else 0.0 for v in ordered_vertices])
-            return F.binary_cross_entropy_with_logits(selection_logit, selection_mask, reduction='sum') + meta_head_loss
+            return F.binary_cross_entropy_with_logits(selection_logit, selection_mask, reduction='sum') + meta_head_loss + value_loss
 
     def sample_action(self, state):
         ordered_vertices = list(sorted(list(state.spec.vertices)))
-        unique_logprob, selection_logit, meta_head_logit = self(state)
+        unique_logprob, selection_logit, meta_head_logit, _ = self(state)
         case_unique = self.to_numpy(torch.distributions.bernoulli.Bernoulli(probs=torch.sigmoid(meta_head_logit)).sample()) > 0.5
 
         if case_unique:

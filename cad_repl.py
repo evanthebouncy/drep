@@ -195,7 +195,7 @@ class Environment:
         colors = cm.get_cmap('tab10')
         
         
-        radius = 0.1
+        radius = 0.025
         plot.figure()
         all_vertices = list(self.spec.vertices)
 

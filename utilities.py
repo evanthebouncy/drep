@@ -95,6 +95,15 @@ class LayerNorm(Module):
         std = x.std(-1, keepdim=True)
         return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
 
+class Softminus(Module):
+    """Activation function that always returns a value that is less than zero"""
+    def __init__(self):
+        super(Softminus, self).__init__()
+        self._sp = nn.Softplus()
+        self.finalize()
+    def forward(self,x):
+        return -self._sp(x)
+
 class LexicalEmbedding(Module):
     def __init__(self, lexicon, embedding_size, embedding=None):
         super(LexicalEmbedding, self).__init__()
