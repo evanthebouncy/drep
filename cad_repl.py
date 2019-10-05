@@ -331,6 +331,7 @@ class Environment:
         # recover the start vertex
         start = self.get_tag1(TAG_TRANSLATE_START)
         step_vertex = self.get_tag1(TAG_TRANSLATE_INDUCTION)
+        if start == step_vertex: raise Death()
 
         translate_x = step_vertex[0] - start[0]
         translate_y = step_vertex[1] - start[1]
