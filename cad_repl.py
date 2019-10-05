@@ -158,6 +158,7 @@ class TranslateSelect(Action):
         self.vs = vs
 
     def execute(self, state):
+        if len(self.vs) == 0: raise Death()
         return state.translate_select(self.vs)._translate()
 
 class Explain(Action):
