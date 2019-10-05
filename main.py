@@ -1,7 +1,7 @@
 from cad import *
 from cad_repl import *
 from agent import *
-import tqdm
+#import tqdm
 
 def train(agent, checkpoint):
     all_losses = []
