@@ -24,10 +24,10 @@ TAG_ROTATE_SELECT = "tag_rotate_select"
 
 ALL_TAGS = [
     TAG_EXPLAINED,
-    TAG_ROTATE,
-    TAG_ROTATE_START,
-    TAG_ROTATE_NEXT,
-    TAG_ROTATE_FINAL,
+    # TAG_ROTATE,
+    # TAG_ROTATE_START,
+    # TAG_ROTATE_NEXT,
+    # TAG_ROTATE_FINAL,
     TAG_TRANSLATE,
     TAG_TRANSLATE_START,
     TAG_TRANSLATE_INDUCTION
@@ -45,9 +45,9 @@ class Action:
         return self.__repr__()
     def __repr__(self):
         if self.__class__.number_of_points == 1:
-            return f"{self.__class__} {self.v}"
+            return f"{self.__class__.__name__}({self.v})"
         else:
-            return f"{self.__class__} {self.vs}"
+            return f"{self.__class__.__name__}({self.vs})"
 
 class DoNothing(Action):
     def execute(self,state ): return state
@@ -192,7 +192,9 @@ class Environment:
         return all( TAG_EXPLAINED in tags for tags in self.tags.values() )
 
     def render(self, name="repl_render"):
-        C = list(np.linspace(0, 1, len(ALL_TAGS)))
+        colors = cm.get_cmap('tab10')
+        
+        
         radius = 0.1
         plot.figure()
         all_vertices = list(self.spec.vertices)
@@ -206,13 +208,13 @@ class Environment:
                 if TAG in self.tags[vertex]:
                     x,y = vertex
                     vertex_to_draw.append((x + dx, y + dy))
-                    vertex_to_draw_colors.append(C[tag_index])
+                    vertex_to_draw_colors.append(colors(tag_index))
             plot.scatter([x for x,_ in vertex_to_draw],
                          [y for _,y in vertex_to_draw],
                           s=100,
                           c=vertex_to_draw_colors, 
                           alpha=0.3,
-                          cmap=cm.rainbow)
+                          cmap=colors)
             # plt.scatter(x, y, alpha=0.5, c=corr, cmap=cm.rainbow)
 
         # draw little black dots
@@ -222,8 +224,8 @@ class Environment:
                       c='k',
                       alpha=1.0)
         plot.legend(handles=[Line2D([0],[0],marker='o',color='w',label=t,
-                                    markerfacecolor=cm.rainbow(c),markersize=15,alpha=0.3)
-                             for c,t in zip(C,ALL_TAGS) ])
+                                    markerfacecolor=colors(c),markersize=15,alpha=0.3)
+                             for c,t in enumerate(ALL_TAGS) ])
         plot.savefig(f"drawings/{name}.png")
         plot.close()
 

@@ -46,8 +46,9 @@ class Agent(Module):
         y = (y - minimum[1])/(maximum[1] - minimum[1])
         waveNumbers = [(kx,ky)
                        for kx in range(int(components**0.5 + 0.6))
-                       for ky in range(int(components**0.5 + 0.6)) ][:components]
-        return [ f((math.pi/2.) * (2**kx) * x + (math.pi/2.) * (2**ky) * y)
+                       for ky in range(int(components**0.5 + 0.6))
+                       if kx > 0 or ky > 0][:components]
+        return [ f(2*math.pi * kx * x + 2*math.pi * ky * y)
                  for kx,ky in waveNumbers
                  for f in [math.sin,math.cos] ]            
 

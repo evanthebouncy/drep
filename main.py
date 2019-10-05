@@ -3,9 +3,9 @@ from cad_repl import *
 from agent import *
 import tqdm
 
-def train(agent):
+def train(agent, checkpoint):
     all_losses = []
-    for i in tqdm.tqdm(range(1000000000000)):
+    for i in range(1000000000000):
         # sample and train
         try:
             program = Program.sample()
@@ -29,12 +29,14 @@ def train(agent):
             all_losses = []
             try:                                                            
                 rollout = agent.get_rollout(Environment(program.execute()))
-                print (rollout)
                 if rollout is not None:
-                    print ("we are awesome")
+                    print("Rollout:")
+                    for s,a in rollout[0]:
+                        print(a)
+                    print(f"Final state: All explained? {rollout[1].all_explained()}")
             except cad_repl.Death:                                                  
                 print ("rollout failed")
-            agent.save("saved_models/m1.mdl")
+            agent.save(checkpoint)
 
 def test(loc, n_test):
     agent = torch.load(loc)
@@ -56,7 +58,8 @@ if __name__ == '__main__':
 
     parser.add_argument("mode",type=str,
                         choices=["train", "test"])
-    parser.add_argument("--checkpoint", type=str)
+    parser.add_argument("--checkpoint", type=str,
+                        default="saved_models/m1.mdl")
     parser.add_argument("--numtest",type=int,
                         default=10)
 
@@ -64,8 +67,8 @@ if __name__ == '__main__':
 
     # actually do shit
     if arguments.mode == 'train':
-        agent = Agent(8, Action.all_buttons())
-        train(agent)
+        agent = Agent(16, Action.all_buttons())
+        train(agent, arguments.checkpoint)
     if arguments.mode == 'test':
         test(arguments.checkpoint, arguments.numtest)
 
