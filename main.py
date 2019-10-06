@@ -4,11 +4,15 @@ from cad_repl import *
 from agent import *
 from rl import *
 
-#import tqdm
+# Evan my container does not have this package I am so sorry
+try:
+    from tqdm import tqdm
+except:
+    def tqdm(g): return g
 
 def imitation_train(agent, checkpoint):
     all_losses = []
-    for i in range(1000000000000):
+    for i in tqdm(range(1000000000000)):
         # sample and train
         try:
             program = Program.sample()
@@ -30,15 +34,15 @@ def imitation_train(agent, checkpoint):
         if len(all_losses) > 1000:
             print (f"average loss {np.mean(all_losses)}")
             all_losses = []
-            try:                                                            
-                rollout = agent.get_rollout(Environment(program.execute()))
-                if rollout is not None:
-                    print("Rollout:")
-                    for s,a in rollout[0]:
-                        print(a)
-                    print(f"Final state: All explained? {rollout[1].all_explained()}")
-            except cad_repl.Death:                                                  
-                print ("rollout failed")
+            rollout = agent.get_rollout(Environment(program.execute()))
+            if rollout is not None:
+                print("Rollout:")
+                for s,a in rollout.state_actions:
+                    print(a)
+                if rollout.final_state is None:
+                    print("then we die")
+                else:
+                    print(f"Final state: All explained? {rollout.final_state.all_explained()}")
             agent.save(checkpoint)
 
 def do_reinforcement_learning(agent, checkpoint):
@@ -50,7 +54,16 @@ def do_reinforcement_learning(agent, checkpoint):
             except:
                 continue
 
-            def R(state): return float(int(state.all_explained()))
+            def R(trajectory):
+                # We get a reward if the following conditions all hold:
+                # 1. do not die
+                # 2. explain everything
+                # 3. your program has to be at least as short as the ground truth program
+                if trajectory.final_state is None: return 0.
+                if not trajectory.final_state.all_explained(): return 0.
+                sampled_program = trajectory.to_program()
+                if len(sampled_program) <= len(program): return 1.
+                else: return 0.
 
             return R, trace                
         

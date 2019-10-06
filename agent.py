@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from trajectory import Trajectory
 from utilities import Module, Softminus
 import transformer as tr
 from cad_repl import ALL_TAGS, get_trace, Action, TranslateSelect, Death
@@ -147,17 +148,18 @@ class Agent(Module):
         return [self.sample_action(state) for _ in range(n) ]
 
     def get_rollout(self, state):
-        trace = []
+        trajectory = Trajectory(state,[])
         for i in range(20):
-            action = self.sample_action(state)
-            trace.append((state, action))
+            action = self.sample_action(trajectory.final_state)
             try:
-                state = state(action)
+                new_state = trajectory.final_state(action)
             except Death:
-                break
-            if state.all_explained():
-                return trace, state
-        return trace, state
+                new_state = None
+
+            trajectory = trajectory.extend(action, new_state)
+            if new_state is None or new_state.all_explained(): break            
+            
+        return trajectory
 
     def save(self, loc):
         torch.save(self, loc)
