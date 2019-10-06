@@ -105,6 +105,8 @@ class MakeVertex(Command):
     def compile(self, spec):
         import cad_repl
         return [cad_repl.Explain(self.vertex)]
+    def __str__(self):
+        return f"MakeVertex{self.vertex}"
 
 class Loop(Command):
     def __init__(self, selection, mat, repetition):
@@ -162,6 +164,8 @@ class Translate(Loop):
     def __init__(self, selection, dx, dy, repetition):
         super(Translate, self).__init__(selection, mtranslate(dx, dy), repetition)
         self.dx, self.dy = dx, dy
+    def __str__(self):
+        return f"Translate(dx={self.dx}, dy={self.dy}, n={self.repetition}, vs={self.selection})"
     def compile(self, spec):
         import cad_repl
         start_vert = random.choice(self.selection)
@@ -197,6 +201,12 @@ class Program:
 
     def __init__(self, commands):
         self.commands = commands
+
+    def __str__(self):
+        return "\n".join(map(str, self.commands))
+
+    def __len__(self):
+        return len(self.commands)
 
     def execute(self, cad=None):
         if cad is None:

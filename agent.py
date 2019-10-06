@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from utilities import Module, Softminus
 import transformer as tr
-from cad_repl import ALL_TAGS, get_trace, Action, TranslateSelect
+from cad_repl import ALL_TAGS, get_trace, Action, TranslateSelect, Death
 import cad_repl
 import math
 import numpy as np
@@ -98,27 +98,34 @@ class Agent(Module):
 
         return unique_btn_logprob, x_selection_logits, x_meta_head_logit, lv
 
-    def loss(self, state, action, value_target=None):
-        """value_target: [0,1], or None"""
-        ordered_vertices = list(sorted(list(state.spec.vertices)))
+    def log_value(self, state):
+        return F.logsigmoid(self(state)[-1])
+
+    def loss(self, state=None, action=None, value_target=None):
+        """value_target: [0,1], or None, in which case value losses not calculated. Action: action, or None, in which case policy loss is not calculated."""
         unique_logprob, selection_logit, meta_head_logit, log_value = self(state)
 
-        meta_head_target = self.tensor([1.0 if action.__class__.number_of_points == 1 else 0.0])
-        meta_head_loss = F.binary_cross_entropy_with_logits(meta_head_logit, meta_head_target, reduction='sum')
+        ordered_vertices = list(sorted(list(state.spec.vertices)))
 
         if value_target is None: value_loss = 0.
         else:
             value_target = self.tensor([value_target])
             value_loss = F.binary_cross_entropy_with_logits(log_value, value_target, reduction='sum')
-
-        if action.__class__.number_of_points == 1:
-            vertex_index = ordered_vertices.index(action.v)
-            action_index = self.unique_buttons.index(action.__class__)
-            pred_logprob = unique_logprob[vertex_index][action_index]
-            return -pred_logprob + meta_head_loss
+        if action is not None:
+            meta_head_target = self.tensor([1.0 if action.__class__.number_of_points == 1 else 0.0])
+            meta_head_loss = F.binary_cross_entropy_with_logits(meta_head_logit, meta_head_target, reduction='sum')
+            if action.__class__.number_of_points == 1:
+                vertex_index = ordered_vertices.index(action.v)
+                action_index = self.unique_buttons.index(action.__class__)
+                pred_logprob = unique_logprob[vertex_index][action_index]
+                policy_loss = -pred_logprob + meta_head_loss
+            else:
+                selection_mask = self.tensor([1.0 if v in action.vs else 0.0 for v in ordered_vertices])
+                policy_loss = F.binary_cross_entropy_with_logits(selection_logit, selection_mask, reduction='sum') + meta_head_loss
         else:
-            selection_mask = self.tensor([1.0 if v in action.vs else 0.0 for v in ordered_vertices])
-            return F.binary_cross_entropy_with_logits(selection_logit, selection_mask, reduction='sum') + meta_head_loss + value_loss
+            policy_loss = 0.
+
+        return policy_loss + value_loss
 
     def sample_action(self, state):
         ordered_vertices = list(sorted(list(state.spec.vertices)))
@@ -135,12 +142,19 @@ class Agent(Module):
             selected_vert = [vert for vert_id, vert in enumerate(ordered_vertices) if x[vert_id] > 0.5]
             return TranslateSelect(set(selected_vert))
 
+    def sample_actions(self, state, n):
+        # FIXME: batch
+        return [self.sample_action(state) for _ in range(n) ]
+
     def get_rollout(self, state):
         trace = []
         for i in range(20):
             action = self.sample_action(state)
             trace.append((state, action))
-            state = state(action)
+            try:
+                state = state(action)
+            except Death:
+                break
             if state.all_explained():
                 return trace, state
         return trace, state

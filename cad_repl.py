@@ -5,7 +5,7 @@ from matplotlib.lines import Line2D
 import matplotlib.cm as cm
 
 
-from cad import CAD, mtranslate, mrotate
+from cad import CAD, mtranslate, mrotate, MakeVertex, Translate
 from copy import deepcopy
 
 # the agent dies when it executes an invalid command
@@ -40,6 +40,10 @@ class Action:
 
     def __call__(self, other):
         return self.execute(other)
+
+    def __eq__(self,o): return isinstance(o,Action) and str(o) == str(self)
+    def __ne__(self,o): return not (self == o)
+    def __hash__(self): return hash(str(self))
 
     def __str__(self):
         return self.__repr__()
@@ -144,6 +148,8 @@ class TranslateStart(Action):
     def execute(self, state):
         return state.add_tag_all(TAG_TRANSLATE).translate_start(self.v)
 
+    def to_program(self, state): return []
+
 class TranslateInduction(Action):
     number_of_points = 1
     def __init__(self, v):
@@ -151,6 +157,8 @@ class TranslateInduction(Action):
 
     def execute(self, state):
         return state.translate_induction(self.v)
+
+    def to_program(self, state): return []
 
 class TranslateSelect(Action):
     number_of_points = 'many'
@@ -161,6 +169,15 @@ class TranslateSelect(Action):
         if len(self.vs) == 0: raise Death()
         return state.translate_select(self.vs)._translate()
 
+    def to_program(self, state):
+        x0,y0 = state.get_tag1(TAG_TRANSLATE_START)
+        x1,y1 = state.get_tag1(TAG_TRANSLATE_INDUCTION)
+        dx = x1 - x0
+        dy = y1 - y0
+        _, n = state.get_looped_vertices(self.vs, mtranslate(dx,dy))
+        
+        return [Translate(self.vs, dx, dy, n)]
+
 class Explain(Action):
     number_of_points = 1
     def __init__(self, v):
@@ -169,17 +186,21 @@ class Explain(Action):
     def execute(self, state):
         return state.explain(self.v)
 
+    def to_program(self, state):
+        return [MakeVertex(self.v)]
+
 class Environment:
 
     def __init__(self, spec, tags=None):
         self.spec = spec
         if tags is None:
             self.tags = dict([(x, set()) for x in spec.vertices])
-        self.loop_count = dict()
 
     def __eq__(self, other):
         return str(self) == str(other)
-
+    def __ne__(self, other):
+        return not (self == other)
+    def __hash__(self): return hash(str(self))
     def __str__(self):
         return self.__repr__()
     def __repr__(self):
@@ -192,12 +213,16 @@ class Environment:
     def all_explained(self):
         return all( TAG_EXPLAINED in tags for tags in self.tags.values() )
 
-    def render(self, name="repl_render"):
+    def number_explained(self):
+        return sum( TAG_EXPLAINED in tags for tags in self.tags.values() )
+
+    def render(self, name="repl_render", title=None):
         colors = cm.get_cmap('tab10')
         
         
         radius = 0.025
         plot.figure()
+        if title: plot.title(title)
         all_vertices = list(self.spec.vertices)
 
         for tag_index, TAG in enumerate(ALL_TAGS):
@@ -318,6 +343,25 @@ class Environment:
         ret.tags[vertex].add(TAG_TRANSLATE_INDUCTION)
         return ret
 
+    def get_looped_vertices(self, selected, matrix):
+        """Given a selection and a matrix to repeatedly transform that selection,
+        returns a tuple of (vertices explained by this loop, repetitions in this loop)"""
+        c = CAD()
+        for selected_vertex in selected:
+            c = c.make_vertex(*selected_vertex)
+
+        # get the set of looped vertices
+        looped_vertices = set()
+        for i in range(100):
+            # loop it i number of times
+            c_looped = c.loop(selected, matrix, i)
+            new_vertices = [self.closest(v) for v in c_looped.vertices ]
+            if any( nv is None for nv in new_vertices  ):
+                return looped_vertices, i
+            looped_vertices.update(new_vertices)
+        assert 0, "should not reach here, how did you loop 100 times and still ok"
+
+
     # given the subset of points to translate TAG_TRANSLATE_SELECT
     # given a special previledged start coordinate TAG_TRANSLATE_START
     # another vertex will serve as the "step" of the translation, this 
@@ -337,27 +381,9 @@ class Environment:
         translate_y = step_vertex[1] - start[1]
 
         # perform the translation
-        c = CAD()
-        for selected_vertex in selected:
-            c = c.make_vertex(*selected_vertex)
-
-        def get_looped_vertices():
-            # get the set of looped vertices
-            looped_vertices = set()
-            for i in range(100):
-                # loop it i number of times
-                c_looped = c.loop(selected, mtranslate(translate_x, translate_y), i)
-                new_vertices = [ret.closest(v) for v in c_looped.vertices ]
-                if any( nv is None for nv in new_vertices  ):
-                    return looped_vertices, i
-                looped_vertices.update(new_vertices)
-            assert 0, "should not reach here, how did you loop 100 times and still ok"
-
-        looped_vertices, loop_count = get_looped_vertices()
+        looped_vertices, loop_count = self.get_looped_vertices(selected, mtranslate(translate_x, translate_y))
         for looped_vert in looped_vertices:
             ret.tags[looped_vert].add(TAG_EXPLAINED)
-        # do some book keeping
-        ret.loop_count[tuple(sorted(list(selected)))] = loop_count
 
         # clear loop tags
         ret.remove_tag_all(TAG_TRANSLATE_SELECT)
