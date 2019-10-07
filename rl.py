@@ -22,9 +22,19 @@ def train_policy_and_value(agent, _=None,
         else:
             # reinforce the teacher 's actions and supervise the value on having failed
             for state, action in imitation_trace:
-                loss = loss + agent.loss(state, action)
+                try:
+                    loss = loss + agent.loss(state, action)
+                except:
+                    print(f"WARNING: Got exception when calculating loss for state/action:")
+                    print(state)
+                    print(action)
             for state, action in trajectory.state_actions:
-                loss = loss + agent.loss(state, None, R)
+                try:
+                    loss = loss + agent.loss(state, None, R)
+                except:
+                    print(f"WARNING: Got exception when calculating loss for state/action:")
+                    print(state)
+                    print(action)                
 
         loss.backward()
         optimizer.step()
