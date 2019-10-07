@@ -121,7 +121,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description = "")
 
     parser.add_argument("mode",type=str,
-                        choices=["imitation", "rl", "test"])
+                        choices=["imitation", "rl", "test", "demo"])
     parser.add_argument("--checkpoint", type=str,
                         default="saved_models/m1.mdl")
     parser.add_argument("--export", default="saved_models/m2.mdl")
@@ -143,5 +143,9 @@ if __name__ == '__main__':
                                   arguments.export)
     if arguments.mode == 'test':
         test(arguments.checkpoint, arguments.numtest, arguments.timeout)
+    if arguments.mode == 'demo':
+        for n in range(20):
+            p = Program.sample()
+            Environment(p.execute()).render(f"demo_{n}")
 
 

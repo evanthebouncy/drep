@@ -17,6 +17,10 @@ class CAD:
             y_max = max(v[1] for v in self.vertices)
         return (x_min, y_min), (x_max, y_max)
 
+    def bounded_by(self, small, big):
+        return all( small <= x <= big and small <= y <= big
+                    for x,y in self.vertices )
+
     def close(self, v1, v2, epsilon=0.001):
         return (v1[0] - v2[0])*(v1[0] - v2[0]) + (v1[1] - v2[1])*(v1[1] - v2[1]) < epsilon*epsilon
 
@@ -160,6 +164,52 @@ class Translate(Loop):
             
         return None
 
+    
+    @staticmethod
+    def sample_array(canvas, attempts=50):
+        for _ in range(attempts):        
+            p0 = random.choice(list(canvas.vertices))
+
+            cx,cy = p0
+            w,h = 0,0
+
+            # |dx| > w + e
+            # n*dx + cx in [0,1]
+            e = 0.1 # epsilon
+            possibilities = [ (n,dx,dy)
+                              for dx in np.linspace(-1,1,30)
+                               for dy in np.linspace(-1,1,30)
+                               for n in [3,4,5]
+                               if abs(dx) > w + e and \
+                              abs(dy) > h + e and \
+                              0 <= n*dx + cx <= 1 and \
+                              0 <= n*dy + cy <= 1]
+            if len(possibilities) == 0: continue
+
+            def sort_of_perpendicular(u,v):
+                nu = (u*u).sum()**0.5
+                nv = (v*v).sum()**0.5
+                cosine_of_angle = (u*v).sum()/(nu*nv)
+                return abs(cosine_of_angle) < 1./(2**0.5)
+
+            n,dx1,dy1 = random.choice(possibilities)
+            remaining_possibilities = [(m,dx2,dy2)
+                                       for m,dx2,dy2 in possibilities
+                                       if sort_of_perpendicular(np.array([dx1,dy1]),
+                                                                np.array([dx2,dy2]))]
+            if len(remaining_possibilities) == 0: continue
+            
+            m,dx2,dy2 = random.choice(remaining_possibilities)
+
+            k1 = Translate({p0},dx1,dy1,n)
+            new_canvas = k1.execute(CAD({p0}))
+            k2 = Translate(new_canvas.vertices,dx2,dy2,m)
+            new_canvas = k2.execute(k1.execute(canvas))
+            if new_canvas.minimal_spacing() > 0.1 and new_canvas.bounded_by(0,1):
+                return [k1,k2]
+        return None
+        
+
 
     def __init__(self, selection, dx, dy, repetition):
         super(Translate, self).__init__(selection, mtranslate(dx, dy), repetition)
@@ -180,7 +230,15 @@ class Program:
 
     @staticmethod
     def sample():
-        num_dots = random.randint(1, 2)
+        if random.random() < 0.75:
+            canvas = CAD()
+            k0 = MakeVertex.sample(canvas)
+            canvas = k0(canvas)
+            array = Translate.sample_array(canvas)
+            if array:
+                return Program([k0] + array)
+            
+        num_dots = random.randint(1, 3)
         num_loops = random.randint(1,2)
         cmds = []
         canvas_sofar = CAD()
