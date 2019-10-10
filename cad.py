@@ -218,7 +218,7 @@ class Translate(Loop):
         return f"Translate(dx={self.dx}, dy={self.dy}, n={self.repetition}, vs={self.selection})"
     def compile(self, spec):
         import cad_repl
-        start_vert = random.choice(self.selection)
+        start_vert = random.choice(list(self.selection))
         end_vert = spec.closest((start_vert[0] + self.dx, start_vert[1] + self.dy))
         return [
             cad_repl.TranslateStart(start_vert),
