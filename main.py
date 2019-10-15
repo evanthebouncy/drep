@@ -137,12 +137,16 @@ if __name__ == '__main__':
     parser.add_argument("--timeout","-t",
                         type=float,
                         default=5)
+    parser.add_argument("--hidden","-H",
+                        type=int,
+                        default=128,
+                        help="hidden layer size")
 
     arguments = parser.parse_args()
 
     # actually do shit
     if arguments.mode == 'imitation':
-        agent = Agent(16, Action.all_buttons())
+        agent = Agent(16, Action.all_buttons(), hidden_size=arguments.hidden)
         imitation_train(agent, arguments.checkpoint)
     if arguments.mode == "rl":
         do_reinforcement_learning(torch.load(arguments.checkpoint),

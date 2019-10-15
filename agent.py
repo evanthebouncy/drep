@@ -17,7 +17,7 @@ class Agent(Module):
         super(Agent, self).__init__()
         num_unique_buttons = sum(a.number_of_points == 1 for a in buttons)
         self.unique_buttons = [a for a in buttons if a.number_of_points == 1]
-        self.hidden_size = 64
+        self.hidden_size = hidden_size
         self.num_unique_buttons = num_unique_buttons
         self.num_fourier_components = num_fourier_components
         input_vertex_dim = num_fourier_components + len(ALL_TAGS)
