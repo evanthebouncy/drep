@@ -10,6 +10,11 @@ import torch.nn as nn
 
 import math
 
+def loadPickle(f):
+    with open(f,"rb") as handle: return pickle.load(handle)
+def dumpPickle(o,f):
+    with open(f,"wb") as handle: pickle.dump(o,handle)
+
 def mean(xs): return sum(xs)/len(xs)
 def percentile(p,xs):
     return list(sorted(xs))[int(0.5 + p*len(xs))]

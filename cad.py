@@ -36,8 +36,8 @@ class CAD:
         if candidates: return candidates[0]
         return None        
         
-    def make_vertex(self,x,y,epsilon=0.001):
-        if any( (xp-x)*(xp-x) + (yp-y)*(yp-y) < epsilon for xp,yp in self.vertices ): return self
+    def make_vertex(self,x,y,epsilon=0.01):
+        if any( (xp-x)*(xp-x) + (yp-y)*(yp-y) < epsilon*epsilon for xp,yp in self.vertices ): return self
         return CAD(self.vertices|{(x,y)})
 
     def __contains__(self,p):

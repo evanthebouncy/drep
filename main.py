@@ -3,6 +3,9 @@ from SMC import *
 from cad_repl import *
 from agent import *
 from rl import *
+from utilities import *
+
+import sys
 
 # Evan my container does not have this package I am so sorry
 try:
@@ -14,11 +17,14 @@ def imitation_train(agent, checkpoint):
     all_losses = []
     for i in tqdm(range(1000000000000)):
         # sample and train
+        program = Program.sample()
         try:
-            program = Program.sample()
             trace = get_trace(program)
         except:
+            print("FYI, the following program give us some trouble. It's probably not a big deal.")
+            print(program)
             continue
+        
 
         for s, a in trace:                                   
             try:
