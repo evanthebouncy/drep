@@ -82,18 +82,26 @@ def do_reinforcement_learning(agent, checkpoint):
             agent.save(checkpoint)
         
 
-def test(loc, n_test, timeout):
+def test(loc, n_test, timeout, valueCoefficient=1.):
     agent = torch.load(loc)
 
     # sample a bunch of programs.
-    test_programs = [Program.sample() for _ in range(n_test)]
+    test_programs = []
+    while len(test_programs) < n_test:
+        try:
+            p = Program.sample()
+            get_trace(p)
+            test_programs.append(p)
+        except: continue
+        
     # for each program we are going to store the best trajectory that solves it
     best_trajectories = []
 
     # count how many of the problems we solve
     solved = 0
     for program in test_programs:
-        sampler = SMC(agent, maximumLength=len(get_trace(program)), valueCoefficient=1., initialParticles=10, exponentialGrowthFactor=2)
+        sampler = SMC(agent, maximumLength=len(get_trace(program)),
+                      valueCoefficient=valueCoefficient, initialParticles=10, exponentialGrowthFactor=2)
         initial_state = Environment(program.execute())
 
         # keep track of the sample which explains the largest fraction of the data
@@ -137,6 +145,7 @@ if __name__ == '__main__':
     parser.add_argument("--timeout","-t",
                         type=float,
                         default=5)
+    parser.add_argument("--valueCoefficient","-v",type=float,default=1.)
     parser.add_argument("--hidden","-H",
                         type=int,
                         default=128,
@@ -152,7 +161,7 @@ if __name__ == '__main__':
         do_reinforcement_learning(torch.load(arguments.checkpoint),
                                   arguments.export)
     if arguments.mode == 'test':
-        test(arguments.checkpoint, arguments.numtest, arguments.timeout)
+        test(arguments.checkpoint, arguments.numtest, arguments.timeout, arguments.valueCoefficient)
     if arguments.mode == 'demo':
         for n in range(20):
             p = Program.sample()
