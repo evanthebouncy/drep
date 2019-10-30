@@ -85,7 +85,7 @@ class Command:
 class MakeVertex(Command):
 
     @staticmethod
-    def sample(canvas_sofar):
+    def sample(canvas_sofar, attempts=30, failureOkay=True):
         (x_min, y_min), (x_max, y_max) = canvas_sofar.get_size()
         minmin = min(x_min, y_min)
         maxmax = max(x_max, y_max)
@@ -95,12 +95,15 @@ class MakeVertex(Command):
                     return False
             return True
 
-        for _ in range(30):
+        for _ in range(attempts):
             x, y = np.random.uniform(minmin, maxmax), np.random.uniform(minmin, maxmax)
             if legal(x,y):
-                break
-
-        return MakeVertex((x,y))
+                return MakeVertex((x,y))
+        
+        if failureOkay:
+            return MakeVertex((x,y))
+        else:
+            return None
 
     def __init__(self, vertex):
         self.vertex = vertex
@@ -236,10 +239,16 @@ class Program:
             canvas = k0(canvas)
             array = Translate.sample_array(canvas)
             if array:
-                return Program([k0] + array)
+                suffix = []
+                for _ in range(random.choice(range(5))):
+                    distractor = MakeVertex.sample(canvas, failureOkay=False)
+                    if distractor is not None:
+                        suffix.append(distractor)
+                        canvas = distractor(canvas)
+                return Program([k0] + array + suffix)
             
-        num_dots = random.randint(1, 3)
-        num_loops = random.randint(1,2)
+        num_dots = random.randint(1, 6)
+        num_loops = random.randint(1,3)
         cmds = []
         canvas_sofar = CAD()
 
