@@ -1,5 +1,6 @@
 import torch
 
+from test_result import *
 from trajectory import Trajectory
 from cad_repl import Death
 
@@ -19,6 +20,16 @@ class SMC:
         self.exponentialGrowthFactor = exponentialGrowthFactor
         self.valueCoefficient = valueCoefficient
         self.agent = agent
+
+    def inferTestResults(self, initialState, timeout, reward):
+        results = []
+        start = time.time()
+        for trajectory in self.infer(initialState, timeout):
+            T = time.time() - start
+            R = reward(trajectory)
+            if len(results) == 0 or results[-1].reward < R:
+                results.append(TestResult(trajectory, T, R))
+        return results            
         
     def infer(self, initialState, timeout):
         """Yields a stream of Trajectory's until timeout is reached"""

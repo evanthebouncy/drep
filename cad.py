@@ -251,7 +251,7 @@ class Program:
         cmds = []
         canvas_sofar = CAD()
 
-        for i in range(num_dots):
+        for i in range(min(num_dots,2)):
             vertex_cmd = MakeVertex.sample(canvas_sofar)
             canvas_sofar = vertex_cmd(canvas_sofar)
             cmds.append(vertex_cmd)
@@ -263,6 +263,12 @@ class Program:
             
             canvas_sofar = loop_cmd(canvas_sofar)
             cmds.append(loop_cmd)
+
+        for i in range(max(num_dots - 2,0)):
+            vertex_cmd = MakeVertex.sample(canvas_sofar)
+            canvas_sofar = vertex_cmd(canvas_sofar)
+            cmds.append(vertex_cmd)
+            
         return Program(cmds)
 
     def __init__(self, commands):

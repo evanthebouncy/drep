@@ -92,6 +92,9 @@ def test(loc, n_test, timeout, valueCoefficient=1.):
     agent = torch.load(loc)
 
     # sample a bunch of programs.
+    # set the seeds for consistent tests
+    random.seed(0)
+    np.random.seed(0)
     test_programs = []
     while len(test_programs) < n_test:
         try:
@@ -100,8 +103,8 @@ def test(loc, n_test, timeout, valueCoefficient=1.):
             test_programs.append(p)
         except: continue
         
-    # for each program we are going to store the best trajectory that solves it
-    best_trajectories = []
+    # for each program we are going to store the trajectories we find
+    results = []
 
     # count how many of the problems we solve
     solved = 0
@@ -109,31 +112,33 @@ def test(loc, n_test, timeout, valueCoefficient=1.):
         sampler = SMC(agent, maximumLength=len(get_trace(program)),
                       valueCoefficient=valueCoefficient, initialParticles=10, exponentialGrowthFactor=2)
         initial_state = Environment(program.execute())
+        
+        def reward(trajectory):
+            return trajectory.final_state.number_explained()
 
-        # keep track of the sample which explains the largest fraction of the data
-        best_trajectory = None
-
-        # loop over the samples and maintain the one which is best
-        for trajectory in sampler.infer(initial_state, timeout=timeout):
-            if best_trajectory is None or \
-               best_trajectory.final_state.number_explained() <= trajectory.final_state.number_explained():
-                best_trajectory = trajectory
+        test_results = sampler.inferTestResults(initial_state, timeout=timeout, reward=reward)
 
         # check to see if we solved the problem
-        if best_trajectory is not None and best_trajectory.final_state.all_explained():
+        if len(test_results) > 0 and test_results[-1].trajectory.final_state.all_explained():
             solved += 1
-        
-        best_trajectories.append(best_trajectory)
+
+        results.append(test_results)
     
     print("using SMC we solve", solved/len(test_programs), "optimally within", timeout, "seconds.")
 
     # visualize the solutions
-    for n, rollout in enumerate(best_trajectories):
-        if rollout is None: continue
+    for n, rollout in enumerate(results):
+        if len(rollout) == 0: continue
+        rollout = rollout[-1].trajectory
         for i,(s,a) in enumerate(rollout.state_actions + [(rollout.final_state,"DONE")]):
             s.render(f"problem_{n}_step_{i}", title=str(a))
         print("Program #",n)
         print(rollout.to_program())
+
+    assert "saved_models" not in arguments.export
+
+    dumpPickle(list(zip(test_programs,results)),
+               arguments.export)
             
 if __name__ == '__main__':
     # say what u want to do
