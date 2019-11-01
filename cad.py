@@ -166,8 +166,6 @@ class Translate(Loop):
                 return command
             
         return None
-
-    
     @staticmethod
     def sample_array(canvas, attempts=50):
         for _ in range(attempts):        
@@ -232,7 +230,8 @@ class Translate(Loop):
 class Program:
 
     @staticmethod
-    def sample():
+    def sample(distractors=None):
+        distractors = distractors or list(range(5))
         if random.random() < 0.75:
             canvas = CAD()
             k0 = MakeVertex.sample(canvas)
@@ -240,14 +239,14 @@ class Program:
             array = Translate.sample_array(canvas)
             if array:
                 suffix = []
-                for _ in range(random.choice(range(5))):
+                for _ in range(random.choice(distractors)):
                     distractor = MakeVertex.sample(canvas, failureOkay=False)
                     if distractor is not None:
                         suffix.append(distractor)
                         canvas = distractor(canvas)
                 return Program([k0] + array + suffix)
             
-        num_dots = random.randint(1, 6)
+        num_dots = random.choice(distractors)+1
         num_loops = random.randint(1,3)
         cmds = []
         canvas_sofar = CAD()

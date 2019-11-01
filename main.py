@@ -14,10 +14,12 @@ except:
     def tqdm(g): return g
 
 def imitation_train(agent, checkpoint):
+    global distractors
+    
     all_losses = []
     for i in tqdm(range(1000000000000)):
         # sample and train
-        program = Program.sample()
+        program = Program.sample(distractors=distractors)
         try:
             trace = get_trace(program)
         except:
@@ -52,10 +54,12 @@ def imitation_train(agent, checkpoint):
             agent.save(checkpoint)
 
 def do_reinforcement_learning(agent, checkpoint):
+    global distractors
+    
     def sample_problem():
         while True:
             try:
-                program = Program.sample()
+                program = Program.sample(distractors=distractors)
                 trace = get_trace(program)
             except:
                 continue
@@ -83,13 +87,15 @@ def do_reinforcement_learning(agent, checkpoint):
         
 
 def test(loc, n_test, timeout, valueCoefficient=1.):
+    global distractors
+    
     agent = torch.load(loc)
 
     # sample a bunch of programs.
     test_programs = []
     while len(test_programs) < n_test:
         try:
-            p = Program.sample()
+            p = Program.sample(distractors=distractors)
             get_trace(p)
             test_programs.append(p)
         except: continue
@@ -150,8 +156,17 @@ if __name__ == '__main__':
                         type=int,
                         default=128,
                         help="hidden layer size")
+    parser.add_argument("--distractors",
+                        type=str,
+                        default="1")
 
     arguments = parser.parse_args()
+
+    distractors = arguments.distractors
+    if ":" not in distractors: distractors = f"{distractors}:{distractors}"
+    distractors = distractors.split(":")
+    assert len(distractors) == 2
+    distractors = list(range(int(distractors[0]),1+int(distractors[1])))
 
     # actually do shit
     if arguments.mode == 'imitation':
@@ -164,7 +179,7 @@ if __name__ == '__main__':
         test(arguments.checkpoint, arguments.numtest, arguments.timeout, arguments.valueCoefficient)
     if arguments.mode == 'demo':
         for n in range(20):
-            p = Program.sample()
+            p = Program.sample(distractors=distractors)
             Environment(p.execute()).render(f"demo_{n}")
 
 
